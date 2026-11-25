@@ -19,7 +19,7 @@ POSITION_SCALE = 15000
 SIZE_SCALE = 2048
 BODY_COUNT = 1700
 CAMERA = {"far_pitch": .69, "near_pitch": .105, "far_zoom": .43,
-          "push_at": 3240, "push_duration": 2110, "form_at": 680,
+          "push_at": 2780, "push_duration": 2840, "form_at": 680,
           "form_duration": 2250, "gift_at": 6200}
 GOLD = ["#a67649", "#cb995d", "#eac180", "#f9d99a", "#fff2c8"]
 PHOTO_POSES = [(-math.tau/6, .32, .124, -.10), (0, .52, .181, .07),
