@@ -47,6 +47,17 @@ button:focus-visible{outline:2px solid #ffe4a1;outline-offset:4px}
 .icon{width:44px;height:44px;display:grid;place-items:center;color:#f4ddb0;border:1px solid var(--line);border-radius:50%;background:#101521}
 .icon:hover,.icon[aria-pressed="true"]{background:#322b2e;border-color:#ffdd8d9e}
 .icon[aria-busy="true"]{opacity:.62}
+.scene-controls{display:flex;gap:8px}
+.music-mark{font:400 1.42rem/1 Georgia,serif}
+.music-panel{width:min(315px,calc(100vw - 26px));padding:9px 10px 10px;border:1px solid var(--line);border-radius:13px;background:#131724;color:var(--cream);text-align:left;box-shadow:0 8px 35px #04060b96}
+.music-header{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 5px}
+.music-title{margin:0;font:600 1rem/1.2 Georgia,serif}
+.music-artist{display:block;margin-top:3px;color:var(--muted);font-size:.76rem}
+.music-close{min-width:44px;min-height:44px;border:0;background:none;color:var(--gold);font-size:1.35rem;line-height:1}
+.music-frame{display:block;width:100%;min-width:200px;height:200px;border:0;background:#080912}
+.music-status{margin:6px 0;color:var(--muted);font-size:.8rem}
+.music-link{display:inline-flex;align-items:center;min-height:44px;color:var(--gold);font-size:.8rem;text-underline-offset:3px}
+@media(max-width:520px){.music-panel{width:min(250px,calc(100vw - 26px))}}
 .camera-mark{display:block;position:relative;width:18px;height:13px;border:1.4px solid currentColor;border-radius:3px}
 .camera-mark::before{content:"";position:absolute;inset:2px 5px;border:1px solid currentColor;border-radius:50%}
 .camera-mark::after{content:"";position:absolute;left:3px;top:-4px;width:5px;height:3px;background:currentColor;border-radius:2px 2px 0 0}
@@ -86,8 +97,20 @@ dialog::backdrop{background:#070a13d9}
   <div class="opening-flakes" aria-hidden="true"></div>
   <p class="opening-greeting" lang="en" aria-hidden="true">Merry Christmas</p>
 <div class="scene-ui">
-    <button class="icon" id="camera" type="button" aria-pressed="false" aria-label="开启手势" title="开启手势"><span class="camera-mark" aria-hidden="true"></span></button>
+    <div class="scene-controls">
+      <button class="icon" id="music" type="button" aria-expanded="false" aria-controls="musicPanel" aria-label="播放 Marry" title="播放 Marry"><span class="music-mark" aria-hidden="true">♫</span></button>
+      <button class="icon" id="camera" type="button" aria-pressed="false" aria-label="开启手势" title="开启手势"><span class="camera-mark" aria-hidden="true"></span></button>
+    </div>
     <p class="camera-status" id="cameraStatus" role="status" hidden></p>
+    <section class="music-panel" id="musicPanel" aria-labelledby="musicTitle" hidden>
+      <div class="music-header">
+        <div><h2 class="music-title" id="musicTitle">Marry</h2><span class="music-artist">INDEcompany · Top Barry</span></div>
+        <button class="music-close" id="musicClose" type="button" aria-label="关闭并停止音乐" title="关闭并停止音乐">×</button>
+      </div>
+      <div id="musicMount"></div>
+      <p class="music-status" id="musicStatus" role="status" hidden></p>
+      <a class="music-link" href="https://music.youtube.com/watch?v=Sraa9s2xzVI" target="_blank" rel="noopener noreferrer">在 YouTube Music 打开（新标签页）</a>
+    </section>
     <span class="sr-only" id="handHint" aria-live="off"></span>
   </div>
   <video class="camera-source" muted playsinline aria-hidden="true" tabindex="-1"></video>
@@ -750,6 +773,7 @@ function updatePhoto(index) {
 function showPhoto(index) {
   updatePhoto(index);
   if(photoDialog.open) return;
+  closeMusic();
   photoDialog.showModal();
   const hit = visiblePhotos.find(photo=>photo.index===activePhoto);
   const image = photoDialog.querySelector('img');
@@ -839,6 +863,7 @@ document.querySelector('#previous').addEventListener('click',()=>updatePhoto(act
 document.querySelector('#next').addEventListener('click',()=>updatePhoto(activePhoto+1));
 function openGift(){
   if(giftTimer || giftDialog.open) return;
+  closeMusic();
   present.classList.add('open');
   if(reduce.matches) {
     giftDialog.showModal();
@@ -869,6 +894,64 @@ document.addEventListener('visibilitychange',()=>{if(!document.hidden){lastFrame
 reduce.addEventListener('change',()=>{lastTreeAt=-Infinity;requestFrame();});
 for(const img of photoImages) img.addEventListener('load',()=>{lastTreeAt=-Infinity;requestFrame();});
 /* Hand tracking is opt-in. The model only consumes this page's local video element. */
+const musicButton = document.querySelector('#music');
+const musicPanel = document.querySelector('#musicPanel');
+const musicMount = document.querySelector('#musicMount');
+const musicStatus = document.querySelector('#musicStatus');
+let musicFrame = null;
+let musicTimer = 0;
+
+function setMusicLabel(open) {
+  const label = open ? '关闭并停止音乐' : '播放 Marry';
+  musicButton.setAttribute('aria-expanded',String(open));
+  musicButton.setAttribute('aria-label',label);
+  musicButton.title = label;
+}
+function closeMusic(restoreFocus=false) {
+  if(!musicFrame) return;
+  clearTimeout(musicTimer);
+  musicFrame.remove();
+  musicFrame = null;
+  musicPanel.hidden = true;
+  musicStatus.hidden = true;
+  setMusicLabel(false);
+  if(restoreFocus) musicButton.focus();
+}
+function openMusic() {
+  if(musicFrame) return;
+  musicPanel.hidden = false;
+  setMusicLabel(true);
+  musicStatus.hidden = false;
+  musicStatus.textContent = '正在加载 YouTube 播放器…';
+  const iframe = document.createElement('iframe');
+  iframe.className = 'music-frame';
+  iframe.title = 'YouTube 播放器：Marry，INDEcompany 与 Top Barry';
+  iframe.allow = 'autoplay; encrypted-media';
+  iframe.referrerPolicy = 'strict-origin-when-cross-origin';
+  iframe.allowFullscreen = true;
+  musicFrame = iframe;
+  iframe.addEventListener('load',()=>{
+    if(musicFrame!==iframe) return;
+    clearTimeout(musicTimer);
+    musicStatus.hidden = true;
+  });
+  musicTimer = setTimeout(()=>{
+    if(musicFrame===iframe) musicStatus.textContent = '播放器加载较慢，可以在 YouTube Music 打开。';
+  },8000);
+  iframe.src = 'https://www.youtube-nocookie.com/embed/Sraa9s2xzVI?autoplay=1&playsinline=1&loop=1&playlist=Sraa9s2xzVI';
+  musicMount.append(iframe);
+}
+musicButton.addEventListener('click',()=>musicFrame ? closeMusic(true) : openMusic());
+document.querySelector('#musicClose').addEventListener('click',()=>closeMusic(true));
+musicPanel.addEventListener('keydown',event=>{
+  if(event.key==='Escape'){
+    event.preventDefault();
+    closeMusic(true);
+  }
+});
+document.addEventListener('visibilitychange',()=>{if(document.hidden) closeMusic();});
+window.addEventListener('pagehide',()=>closeMusic());
+
 const cameraButton = document.querySelector('#camera');
 const cameraStatus = document.querySelector('#cameraStatus');
 const cameraVideo = document.querySelector('.camera-source');
