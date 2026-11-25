@@ -949,7 +949,16 @@ musicPanel.addEventListener('keydown',event=>{
     closeMusic(true);
   }
 });
-document.addEventListener('visibilitychange',()=>{if(document.hidden) closeMusic();});
+let openingMusicAttempted = false;
+function playOpeningMusic(){
+  if(openingMusicAttempted || document.hidden) return;
+  openingMusicAttempted = true;
+  openMusic();
+}
+document.addEventListener('visibilitychange',()=>{
+  if(document.hidden) closeMusic();
+  else playOpeningMusic();
+});
 window.addEventListener('pagehide',()=>closeMusic());
 
 const cameraButton = document.querySelector('#camera');
@@ -1262,6 +1271,7 @@ document.addEventListener('visibilitychange',()=>{if(document.hidden && tracking
 
 new ResizeObserver(resize).observe(scene);
 resize();
+playOpeningMusic();
 </script>
 </body>
 </html>
