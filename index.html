@@ -27,7 +27,7 @@ button:focus-visible{outline:2px solid #ffe4a1;outline-offset:4px}
 @keyframes snow-near{from{transform:translate(calc(-1 * var(--tile)),var(--tile))}to{transform:translate(0,0)}}
 .layout{width:min(1050px,100%);padding:10px 7px max(16px,env(safe-area-inset-bottom));text-align:center}
 .scene{position:relative;width:100%;height:clamp(404px,calc(100svh - 106px),930px);min-width:0}
-.scene::before{content:"";position:absolute;pointer-events:none;top:var(--floor-top,80%);left:50%;width:min(95%,var(--floor-width,560px));height:clamp(64px,15vw,126px);transform:translate(-50%,-15%);background:radial-gradient(ellipse at center,#c9955a30 0%,#65749e29 37%,transparent 73%);animation:ground-in 1.4s 1.25s ease-out backwards}
+.tree-viewport::before{content:"";position:absolute;pointer-events:none;top:var(--floor-top,80%);left:50%;width:min(95%,var(--floor-width,560px));height:clamp(64px,15vw,126px);transform:translate(-50%,-15%);background:radial-gradient(ellipse at center,#c9955a30 0%,#65749e29 37%,transparent 73%);animation:ground-in 1.4s 1.25s ease-out backwards}
 @keyframes ground-in{from{opacity:0}to{opacity:1}}
 .tree-viewport{position:absolute;inset:0;transform-origin:50% 59%;transform:scale(.43)}
 .particles3d{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
@@ -303,7 +303,7 @@ function makeParticleRenderer(canvas) {
       vec2 clip = (screen/u_view.zw)*2.0-1.0;
       gl_Position = vec4(clip.x,-clip.y,clamp(-z,-.95,.95),1.0);
       float pulse = .9+.1*sin(u_time*.0018+a_position.y*112.0+a_position.x*58.0);
-      gl_PointSize = max(1.0,abs(a_size)*2.8*perspective*pulse*u_dpr);
+      gl_PointSize = max(1.0,abs(a_size)*2.8*perspective*pulse*u_dpr*(floorPoint ? 1.0+.7*u_ground : 1.0));
       float front = smoothstep(-.3,.25,z);
       v_ink = floorPoint ? vec3(1.0,.82,.61) : a_ink*mix(.52,1.16,front);
       v_opacity = floorPoint ? u_ground*a_ink.r : 1.0;
@@ -590,7 +590,7 @@ function drawTree(elapsed, active = false) {
   visiblePhotos = [];
   const growth = clamp((elapsed - 720)/2450);
   const cos = Math.cos(yaw), sin = Math.sin(yaw);
-  const groundAlpha=ease((elapsed-820)/1200)*(.62-.52*cameraProgress);
+  const groundAlpha=ease((elapsed-820)/1200)*(.87-.77*cameraProgress);
   particleRenderer?.draw(growth,cos,sin,scatter,elapsed,groundAlpha);
   if(growth <= 0) return;
   if(!particleRenderer && groundAlpha>.08){
