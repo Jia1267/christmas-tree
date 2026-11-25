@@ -66,7 +66,8 @@ dialog::backdrop{background:#070a13d9}
 .photo-caption{color:var(--muted);margin:14px 0}
 .album-controls{display:flex;justify-content:center;gap:10px}
 .gift-star{font:3.5rem/1 Georgia,serif;color:#ffda90;text-shadow:0 0 24px #ffbb46a0;margin-top:18px}
-.gift-copy{color:var(--muted);margin:0 0 22px}
+.gift-copy{color:var(--muted);margin:0 auto 16px;max-width:19em;line-height:1.8}
+.gift-signoff{margin:0 auto 18px;color:var(--gold);font-size:.92rem}
 @media(max-width:520px){.layout{padding-inline:4px}.scene{height:clamp(355px,calc(100svh - 94px),820px)}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 </style>
@@ -103,8 +104,9 @@ dialog::backdrop{background:#070a13d9}
 <dialog id="giftDialog" aria-labelledby="giftTitle">
   <button class="close" type="button" aria-label="关闭礼物">×</button>
   <div class="gift-star" aria-hidden="true">✧</div>
-  <h2 class="dialog-title" id="giftTitle">给妹妹的礼物</h2>
-  <p class="gift-copy" id="giftMessage">圣诞快乐！给你的礼物还在准备中。</p>
+  <h2 class="dialog-title" id="giftTitle">妹妹，圣诞快乐！</h2>
+  <p class="gift-copy" id="giftMessage">新的一年，希望你想做的事都能慢慢做成，开心的日子多一点。累了也可以歇一歇，照顾好自己。</p>
+  <p class="gift-signoff">还有一份礼物，留给你亲手拆。</p>
 </dialog>
 <script>
 // Replace the sample photo sources and titles here when the real photos are ready.
@@ -531,7 +533,7 @@ function drawDecoration(item,p,elapsed,opacity,cos,sin) {
     if(img.complete && img.naturalWidth) ctx.drawImage(img,-w/2+border,border,side,side*1.25);
     ctx.fillStyle = '#bc9e71';
     ctx.fillRect(-w*.1,h*.93,w*.2,1);
-    if(opacity>.8 && facing>.19) visiblePhotos.push({index:item.index,x:p.x,y:top,tilt,halfWidth:w*stretch/2,height:h});
+    if(opacity>=.35 && facing>.19) visiblePhotos.push({index:item.index,x:p.x,y:top,tilt,halfWidth:w*stretch/2,height:h});
   }
   ctx.restore();
 }
@@ -637,7 +639,7 @@ function requestFrame(){
 }
 
 function photoAt(event) {
-  if(!finalStage) return undefined;
+  if(!visiblePhotos.length) return undefined;
   const bounds = tree.getBoundingClientRect();
   for(let i=visiblePhotos.length-1;i>=0;i--) {
     const hit = visiblePhotos[i];
@@ -681,9 +683,11 @@ tree.addEventListener('pointerleave',()=>{
   requestFrame();
 });
 tree.addEventListener('pointerdown', event => {
-  if(!finalStage || drag || !event.isPrimary || event.button !== 0) return;
+  if(drag || !event.isPrimary || event.button !== 0) return;
+  if(!finalStage && photoAt(event)===undefined) return;
   orbitPausedUntil = performance.now()+1500;
-  drag = {id:event.pointerId,start:event.clientX,last:event.clientX,time:performance.now(),moved:false};
+  drag = {id:event.pointerId,start:event.clientX,startY:event.clientY,last:event.clientX,
+    time:performance.now(),moved:false,canRotate:finalStage};
   velocity = 0;
   tree.setPointerCapture(event.pointerId);
 });
@@ -698,8 +702,10 @@ tree.addEventListener('pointermove', event => {
     return;
   }
   if(drag.id!==event.pointerId) return;
-  if(!drag.moved && Math.abs(event.clientX-drag.start)<6) return;
+  if(!drag.moved && Math.abs(event.clientX-drag.start)<6 &&
+     (drag.canRotate || Math.abs(event.clientY-drag.startY)<6)) return;
   drag.moved = true;
+  if(!drag.canRotate) return;
   tree.classList.add('dragging');
   const now = performance.now();
   const dx = event.clientX-drag.last;
@@ -730,13 +736,13 @@ tree.addEventListener('pointerup',finishPointer);
 tree.addEventListener('pointercancel',finishPointer);
 tree.addEventListener('lostpointercapture',finishPointer);
 tree.addEventListener('keydown',event => {
-  if(!finalStage) return;
   if(event.key==='Enter' || event.key===' ') {
+    if(!visiblePhotos.length) return;
     event.preventDefault();
-    showPhoto(visiblePhotos[0]?.index ?? 0);
+    showPhoto(visiblePhotos[0].index);
     return;
   }
-  if(!['ArrowLeft','ArrowRight'].includes(event.key)) return;
+  if(!finalStage || !['ArrowLeft','ArrowRight'].includes(event.key)) return;
   event.preventDefault();
   orbitPausedUntil = performance.now()+1800;
   yaw += event.key==='ArrowLeft' ? -.23 : .23;
@@ -819,14 +825,14 @@ function clearHand() {
   handCursor.hidden = true;
 }
 function stageTarget(x,y) {
-  if(!finalStage || giftTimer) return null;
+  if(giftTimer) return null;
   const gift = present.getBoundingClientRect();
   if(!present.hidden && x >= gift.left-8 && x <= gift.right+8 && y >= gift.top-8 && y <= gift.bottom+8) return 'gift';
   const index = photoAt({clientX:x,clientY:y});
   return index === undefined ? null : index;
 }
 function handleHand(landmarks,time) {
-  if(!landmarks || !finalStage || drag || giftDialog.open || photoDialog.open || giftTimer) {
+  if(!landmarks || (!finalStage && !visiblePhotos.length) || drag || giftDialog.open || photoDialog.open || giftTimer) {
     if(hadHand) clearHand();
     return;
   }
@@ -846,7 +852,7 @@ function handleHand(landmarks,time) {
     poseSince = time;
     palmAnchor = landmarks[9].x;
   }
-  if(pose === 'palm' && pinch > .55 && !drag) {
+  if(finalStage && pose === 'palm' && pinch > .55) {
     const shift = landmarks[9].x - palmAnchor;
     if(Math.abs(shift) > .025) {
       yaw += shift * 5.0;
@@ -857,7 +863,7 @@ function handleHand(landmarks,time) {
       scatterGoal = 1;
     }
   }
-  if(pose === 'fist' && time-poseSince > 310) scatterGoal = 0;
+  if(finalStage && pose === 'fist' && time-poseSince > 310) scatterGoal = 0;
 
   const bounds = scene.getBoundingClientRect();
   const next = {
@@ -1080,23 +1086,12 @@ async function startCamera() {
     stopCamera(message);
   }
 }
-let autoCameraAttempted = false;
-function enableDefaultCamera(){
-  if(autoCameraAttempted || document.hidden) return;
-  autoCameraAttempted=true;
-  if(!trackingSession) startCamera();
-}
-cameraButton.addEventListener('click',()=>{
-  autoCameraAttempted = true;
-  if(trackingSession) stopCamera(); else startCamera();
-});
-document.addEventListener('visibilitychange',enableDefaultCamera);
+cameraButton.addEventListener('click',()=>trackingSession ? stopCamera() : startCamera());
 window.addEventListener('pagehide',()=>{if(trackingSession) stopCamera();});
 document.addEventListener('visibilitychange',()=>{if(document.hidden && trackingSession) stopCamera();});
 
 new ResizeObserver(resize).observe(scene);
 resize();
-enableDefaultCamera();
 </script>
 </body>
 </html>
