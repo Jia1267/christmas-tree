@@ -29,12 +29,7 @@ button:focus-visible{outline:2px solid #ffe4a1;outline-offset:4px}
 .scene{position:relative;width:100%;height:clamp(404px,calc(100svh - 106px),930px);min-width:0}
 .scene::before{content:"";position:absolute;pointer-events:none;top:var(--floor-top,80%);left:50%;width:min(95%,var(--floor-width,560px));height:clamp(64px,15vw,126px);transform:translate(-50%,-15%);background:radial-gradient(ellipse at center,#c9955a30 0%,#65749e29 37%,transparent 73%);animation:ground-in 1.4s 1.25s ease-out backwards}
 @keyframes ground-in{from{opacity:0}to{opacity:1}}
-.tree-viewport{position:absolute;inset:0;transform-origin:50% 59%;animation:approach-tree 5.35s linear both}
-@keyframes approach-tree{
-  0%{transform:scale(.43)}
-  62%{transform:scale(.43);animation-timing-function:cubic-bezier(.34,.65,.24,1)}
-  100%{transform:scale(1)}
-}
+.tree-viewport{position:absolute;inset:0;transform-origin:50% 59%;transform:scale(.43)}
 .particles3d{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 .tree{position:relative;display:block;width:100%;height:100%;touch-action:pan-y;cursor:grab;user-select:none;-webkit-user-select:none}
 .tree.dragging{cursor:grabbing}
@@ -170,6 +165,7 @@ const photoImages = photos.map(photo => {
 
 const scene = document.querySelector('.scene');
 const tree = document.querySelector('.tree');
+const cameraViewport = document.querySelector('.tree-viewport');
 const ctx = tree.getContext('2d');
 const present = document.querySelector('.present');
 const photoDialog = document.querySelector('#photoDialog');
@@ -249,6 +245,31 @@ const depths = Array.from({length:treeLayers}, () => ({
   particles:Array.from({length:5}, () => []), ornaments:[]
 }));
 
+const ground = Array.from({length:1500},()=>{
+  const angle=random()*TAU, distance=Math.sqrt(random())*1.48;
+  const point=polar(angle,1.015+random()*.035,distance);
+  return {...point,size:.32+random()*.75,
+    glow:(1-distance/1.55)*(.28+random()*.48)};
+});
+const farPitch = .57;
+const nearPitch = .105;
+let cameraProgress = -1;
+let pitchCos = 1, pitchSin = 0, pitchTop = -.52, pitchRange = 1;
+
+function updateCamera(elapsed) {
+  const t = clamp((elapsed-3260)/2090);
+  const push = t*t*(3-2*t);
+  if(cameraProgress===push) return;
+  cameraProgress = push;
+  const tilt=farPitch+(nearPitch-farPitch)*push;
+  pitchCos=Math.cos(tilt);
+  pitchSin=Math.sin(tilt);
+  pitchTop=-.52*pitchCos/(1-.52*pitchSin*.34);
+  const bottom=.48*pitchCos/(1+.48*pitchSin*.34);
+  pitchRange=bottom-pitchTop;
+  cameraViewport.style.transform='scale('+(.43+.57*push)+')';
+}
+
 function makeParticleRenderer(canvas) {
   const gl = canvas.getContext('webgl',{alpha:true,premultipliedAlpha:true,antialias:false});
   if(!gl) return null;
@@ -259,35 +280,44 @@ function makeParticleRenderer(canvas) {
     attribute float a_size;
     uniform vec4 u_view;
     uniform vec2 u_rotation;
+    uniform vec4 u_pitch;
+    uniform float u_ground;
     uniform float u_height;
     uniform float u_growth;
     uniform float u_scatter;
     uniform float u_dpr;
     uniform float u_time;
     varying vec3 v_ink;
+    varying float v_opacity;
     void main(){
+      bool floorPoint = a_size < 0.0;
       vec3 p = a_position + a_drift * u_scatter;
       float x = p.x*u_rotation.x - p.z*u_rotation.y;
-      float z = p.x*u_rotation.y + p.z*u_rotation.x;
+      float planarDepth = p.x*u_rotation.y + p.z*u_rotation.x;
+      float dy = p.y-.52;
+      float y = dy*u_pitch.x + planarDepth*(u_pitch.y-.167);
+      float z = planarDepth*u_pitch.x-dy*u_pitch.y;
       float perspective = 1.0/(1.0-z*.34);
       vec2 screen = vec2(u_view.x+x*u_height*perspective,
-        u_view.y+(.52+(p.y-.52-z*.062)*perspective)*u_height);
+        u_view.y+(y*perspective-u_pitch.z)/u_pitch.w*u_height);
       vec2 clip = (screen/u_view.zw)*2.0-1.0;
       gl_Position = vec4(clip.x,-clip.y,clamp(-z,-.95,.95),1.0);
       float pulse = .9+.1*sin(u_time*.0018+a_position.y*112.0+a_position.x*58.0);
-      gl_PointSize = max(1.0,a_size*2.8*perspective*pulse*u_dpr);
+      gl_PointSize = max(1.0,abs(a_size)*2.8*perspective*pulse*u_dpr);
       float front = smoothstep(-.3,.25,z);
-      v_ink = a_ink*mix(.52,1.16,front);
-      if(a_position.y>u_growth) gl_Position=vec4(2.0,2.0,1.0,1.0);
+      v_ink = floorPoint ? vec3(1.0,.82,.61) : a_ink*mix(.52,1.16,front);
+      v_opacity = floorPoint ? u_ground*a_ink.r : 1.0;
+      if(!floorPoint && a_position.y>u_growth) gl_Position=vec4(2.0,2.0,1.0,1.0);
     }`;
   const fragment = `
     precision mediump float;
     varying vec3 v_ink;
+    varying float v_opacity;
     void main(){
       float r=length(gl_PointCoord-vec2(.5))*2.0;
       float core=1.0-smoothstep(.14,.47,r);
       float halo=.21*(1.0-smoothstep(.15,.96,r));
-      gl_FragColor=vec4(v_ink,core+halo);
+      gl_FragColor=vec4(v_ink,(core+halo)*v_opacity);
     }`;
   function compile(kind,source){
     const shader=gl.createShader(kind);
@@ -307,11 +337,14 @@ function makeParticleRenderer(canvas) {
     gl.deleteShader(frag);
     if(!gl.getProgramParameter(program,gl.LINK_STATUS)) return null;
     gl.useProgram(program);
-    const data=new Float32Array(particles.length*10);
+    const data=new Float32Array((particles.length+ground.length)*10);
     particles.forEach((point,index)=>{
       const rgb=parseInt(frontGold[point.color].slice(1),16);
       data.set([point.x,point.y,point.z,point.drift.x,point.drift.y,point.drift.z,
         (rgb>>16)/255,((rgb>>8)&255)/255,(rgb&255)/255,point.size],index*10);
+    });
+    ground.forEach((point,index)=>{
+      data.set([point.x,point.y,point.z,0,0,0,point.glow,0,0,-point.size],(particles.length+index)*10);
     });
     const vertexBuffer=gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER,vertexBuffer);
@@ -323,6 +356,8 @@ function makeParticleRenderer(canvas) {
     }
     const view=gl.getUniformLocation(program,'u_view');
     const rotation=gl.getUniformLocation(program,'u_rotation');
+    const pitch=gl.getUniformLocation(program,'u_pitch');
+    const groundOpacity=gl.getUniformLocation(program,'u_ground');
     const height=gl.getUniformLocation(program,'u_height');
     const growth=gl.getUniformLocation(program,'u_growth');
     const spread=gl.getUniformLocation(program,'u_scatter');
@@ -340,14 +375,16 @@ function makeParticleRenderer(canvas) {
         gl.uniform4f(view,cssWidth/2,treeTop,cssWidth,cssHeight);
         gl.uniform1f(height,treeHeight);
       },
-      draw(progress,cos,sin,scatter,elapsed){
+      draw(progress,cos,sin,scatter,elapsed,groundAlpha){
         gl.clear(gl.COLOR_BUFFER_BIT);
         if(progress<=0) return;
         gl.uniform2f(rotation,cos,sin);
+        gl.uniform4f(pitch,pitchCos,pitchSin,pitchTop,pitchRange);
+        gl.uniform1f(groundOpacity,groundAlpha);
         gl.uniform1f(growth,progress);
         gl.uniform1f(spread,scatter);
         gl.uniform1f(time,elapsed);
-        gl.drawArrays(gl.POINTS,0,particles.length);
+        gl.drawArrays(gl.POINTS,0,particles.length+ground.length);
       }
     };
   } catch {
@@ -398,9 +435,12 @@ function project(point, cos, sin) {
   const py = point.y + (point.drift?.y || 0) * scatter;
   const pz = point.z + (point.drift?.z || 0) * scatter;
   const x = px * cos - pz * sin;
-  const z = px * sin + pz * cos;
-  const scale = 1 / (1 - z * .34);
-  return {x:center + x * treeHeight * scale, y:treeTop + (.52 + (py - .52 - z * .062) * scale) * treeHeight, z, scale};
+  const planarDepth = px*sin+pz*cos;
+  const dy = py-.52;
+  const y = dy*pitchCos+planarDepth*(pitchSin-.167);
+  const z = planarDepth*pitchCos-dy*pitchSin;
+  const scale = 1/(1-z*.34);
+  return {x:center+x*treeHeight*scale, y:treeTop+(y*scale-pitchTop)/pitchRange*treeHeight, z, scale};
 }
 function layer(z) {
   return depths[Math.max(0,Math.min(treeLayers-1,Math.floor((z + .39) / .78 * treeLayers)))];
@@ -478,8 +518,8 @@ function drawTrace(progress, alpha, cos, sin) {
   ctx.globalAlpha = alpha;
   ctx.strokeStyle = '#efc079';
   ctx.shadowColor = '#ffb859';
-  ctx.shadowBlur = progress < 1 ? 10 : 0;
-  ctx.lineWidth = 1.25;
+  ctx.shadowBlur = progress < 1 ? 10 : 6*(1-cameraProgress);
+  ctx.lineWidth = 1.25+1.75*(1-cameraProgress);
   ctx.beginPath();
   for(let i=0;i<=spiralSteps*progress;i++){
     const p = project(spiral[i],cos,sin);
@@ -550,8 +590,19 @@ function drawTree(elapsed, active = false) {
   visiblePhotos = [];
   const growth = clamp((elapsed - 720)/2450);
   const cos = Math.cos(yaw), sin = Math.sin(yaw);
-  particleRenderer?.draw(growth,cos,sin,scatter,elapsed);
+  const groundAlpha=ease((elapsed-820)/1200)*(.62-.52*cameraProgress);
+  particleRenderer?.draw(growth,cos,sin,scatter,elapsed,groundAlpha);
   if(growth <= 0) return;
+  if(!particleRenderer && groundAlpha>.08){
+    ctx.save();
+    ctx.fillStyle='#e0b98c';
+    for(let i=0;i<ground.length;i+=4){
+      const light=ground[i], point=project(light,cos,sin);
+      ctx.globalAlpha=groundAlpha*light.glow;
+      ctx.fillRect(point.x,point.y,light.size,light.size);
+    }
+    ctx.restore();
+  }
   for(const depth of depths) {
     depth.ornaments.length = 0;
     for(const group of depth.particles) group.length = 0;
@@ -591,7 +642,7 @@ function drawTree(elapsed, active = false) {
       if(item.type!=='photo') drawDecoration(item,point,elapsed,opacity,cos,sin);
     }
   }
-  drawTrace(growth,Math.max(.15,1-clamp((elapsed-3000)/600)),cos,sin);
+  drawTrace(growth,Math.max(.15+.52*(1-cameraProgress),1-clamp((elapsed-3000)/600)),cos,sin);
   for(const {ornaments} of depths){
     for(const {item,point,opacity} of ornaments){
       if(item.type==='photo') drawDecoration(item,point,elapsed,opacity,cos,sin);
@@ -628,6 +679,7 @@ function frame(now) {
   const detailChanged = renderedActive!==active;
   const needsDraw = moving || intro || lastTreeAt===-Infinity || detailChanged;
   if(needsDraw && (now-lastTreeAt>=(active ? 14 : 30) || reduce.matches)){
+    updateCamera(elapsed);
     drawTree(elapsed,active);
     lastTreeAt = now;
     renderedYaw = yaw;
