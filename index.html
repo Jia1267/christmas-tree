@@ -49,6 +49,10 @@ button:focus-visible{outline:2px solid #ffe4a1;outline-offset:4px}
 .icon[aria-busy="true"]{opacity:.62}
 .scene-controls{display:flex;gap:8px}
 .music-mark{font:400 1.42rem/1 Georgia,serif}
+.music-audio-panel{width:min(310px,calc(100vw - 26px));background:#161925;border:1px solid var(--line);border-radius:12px;padding:6px;box-shadow:0 8px 24px #080a1490}
+.music-audio-panel iframe{display:block;width:100%;height:143px;border:0}
+.music-audio-link{display:inline-flex;min-height:32px;align-items:center;margin-left:6px;color:var(--gold);font-size:.8rem;text-underline-offset:3px}
+.music-audio-panel[aria-hidden="true"]{position:absolute;visibility:hidden;pointer-events:none;box-shadow:none}
 .camera-mark{display:block;position:relative;width:18px;height:13px;border:1.4px solid currentColor;border-radius:3px}
 .camera-mark::before{content:"";position:absolute;inset:2px 5px;border:1px solid currentColor;border-radius:50%}
 .camera-mark::after{content:"";position:absolute;left:3px;top:-4px;width:5px;height:3px;background:currentColor;border-radius:2px 2px 0 0}
@@ -93,6 +97,10 @@ dialog::backdrop{background:#070a13d9}
       <button class="icon" id="camera" type="button" aria-pressed="false" aria-label="开启手势" title="开启手势"><span class="camera-mark" aria-hidden="true"></span></button>
     </div>
     <p class="camera-status" id="cameraStatus" role="status" hidden></p>
+    <section class="music-audio-panel" id="musicAudioPanel" aria-label="Marry 音频播放器" aria-hidden="true" inert>
+      <div id="musicAudioMount" data-embed="https://audio.com/embed/v2/audio/1878279240755256?theme=dark&amp;layout=mini&amp;cover=true&amp;footer=true&amp;author=true&amp;watermark=true&amp;autoplay=1"></div>
+      <a class="music-audio-link" href="https://audio.com/liminnn/audio/marry-top-barry-indecompany" target="_blank" rel="noopener noreferrer">在 Audio.com 打开（新标签页）</a>
+    </section>
     <span class="sr-only" id="musicStatus" role="status"></span>
     <span class="sr-only" id="handHint" aria-live="off"></span>
   </div>
@@ -910,6 +918,42 @@ if(backgroundMusic.getAttribute('src')){
   });
   window.addEventListener('pagehide',()=>backgroundMusic.pause());
   startBackgroundMusic(true);
+} else {
+  const panel = document.querySelector('#musicAudioPanel');
+  const mount = document.querySelector('#musicAudioMount');
+  let audioFrame;
+  function loadAudioFrame(){
+    if(audioFrame || !mount.getAttribute('data-embed')) return;
+    const iframe = document.createElement('iframe');
+    iframe.title='Marry · Audio.com';
+    iframe.allow='autoplay';
+    iframe.src=mount.getAttribute('data-embed');
+    mount.append(iframe);
+    audioFrame=iframe;
+  }
+  function showAudioControls(show){
+    panel.setAttribute('aria-hidden',String(!show));
+    panel.inert=!show;
+    musicButton.setAttribute('aria-expanded',String(show));
+    const label=show ? '收起音乐播放器' : '展开音乐播放器';
+    musicButton.setAttribute('aria-label',label);
+    musicButton.title=label;
+    if(show) loadAudioFrame();
+  }
+  if(mount.getAttribute('data-embed')){
+    musicButton.hidden=false;
+    musicButton.removeAttribute('aria-pressed');
+    musicButton.setAttribute('aria-controls','musicAudioPanel');
+    showAudioControls(false);
+    musicButton.addEventListener('click',()=>showAudioControls(panel.inert));
+    panel.addEventListener('keydown',event=>{
+      if(event.key==='Escape'){
+        showAudioControls(false);
+        musicButton.focus();
+      }
+    });
+    loadAudioFrame();
+  }
 }
 
 const cameraButton = document.querySelector('#camera');
