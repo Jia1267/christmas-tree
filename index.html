@@ -10,7 +10,7 @@
 *{box-sizing:border-box}
 body{margin:0;background:#080b13;color:var(--cream);font:16px/1.55 "Microsoft YaHei","PingFang SC",system-ui,sans-serif}
 button{font:inherit;color:inherit;cursor:pointer}
-button:focus-visible,canvas:focus-visible{outline:2px solid #ffe4a1;outline-offset:4px}
+button:focus-visible{outline:2px solid #ffe4a1;outline-offset:4px}
 [hidden]{display:none!important}
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 .page{position:relative;isolation:isolate;min-height:100svh;display:grid;place-items:center;overflow:hidden;background:
@@ -30,7 +30,7 @@ button:focus-visible,canvas:focus-visible{outline:2px solid #ffe4a1;outline-offs
 .scene::before{content:"";position:absolute;pointer-events:none;top:var(--floor-top,80%);left:50%;width:min(95%,var(--floor-width,560px));height:clamp(64px,15vw,126px);transform:translate(-50%,-15%);background:radial-gradient(ellipse at center,#c9955a30 0%,#65749e29 37%,transparent 73%);animation:ground-in 1.4s 1.25s ease-out backwards}
 @keyframes ground-in{from{opacity:0}to{opacity:1}}
 .particles3d{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
-.tree{position:relative;display:block;width:100%;height:100%;touch-action:pan-y;cursor:grab;user-select:none;-webkit-user-select:none;outline-offset:-5px}
+.tree{position:relative;display:block;width:100%;height:100%;touch-action:pan-y;cursor:grab;user-select:none;-webkit-user-select:none}
 .tree.dragging{cursor:grabbing}
 .tree.on-decoration{cursor:pointer}
 .signature{display:flex;align-items:center;justify-content:center;gap:clamp(10px,2.1vw,30px);margin:0;color:#f7e4bd;font:italic 400 clamp(2.2rem,7.8vw,4.1rem)/1.1 "Baskerville","Palatino Linotype",Georgia,serif;letter-spacing:-.041em;text-wrap:balance;text-shadow:0 3px 16px #f7c97326}
@@ -50,17 +50,14 @@ button:focus-visible,canvas:focus-visible{outline:2px solid #ffe4a1;outline-offs
 .present{--gift-target:clamp(108px,29vw,136px);--box-width:clamp(96px,25vw,114px);position:absolute;left:50%;transform:translateX(-50%);top:var(--gift-top,82%);width:calc(var(--gift-target) + 14px);height:calc(var(--gift-target)*.79);border:0;background:none;display:grid;justify-items:center;align-content:start;z-index:2;padding:0;-webkit-tap-highlight-color:transparent}
 .present.enter{animation:gift-in .52s cubic-bezier(.25,.75,.2,1) both}
 @keyframes gift-in{from{opacity:0;transform:translate(-50%,-3px)}to{opacity:1;transform:translate(-50%,0)}}
-.box{width:var(--box-width);height:calc(var(--box-width)*.79);position:relative;display:block;transition:transform .24s}
+.box{width:var(--box-width);height:calc(var(--box-width)*.79);position:relative;display:block}
 .box::before{content:"";position:absolute;inset:auto -11% -1% -11%;height:19%;background:radial-gradient(ellipse at 51% 44%,#05070ee6 8%,#080b15a3 35%,transparent 70%),radial-gradient(ellipse at 54% 56%,#d2a36723 22%,transparent 72%)}
 .box img{position:absolute;display:block;height:auto;user-select:none;pointer-events:none;filter:saturate(.88)}
 .box .base{width:96.5%;left:2%;bottom:5%}
 .box .lid{width:100%;left:0;top:0;transform-origin:21% 86%;transition:transform .43s cubic-bezier(.15,.8,.22,1)}
-.present:hover .box,.present:focus-visible .box{transform:translateY(-3px)}
-.present:focus-visible{outline:none}
-.present:focus-visible .box,.present.aimed .box{filter:drop-shadow(0 0 7px #f8d691) drop-shadow(0 0 12px #ed9d3470)}
+.tree:focus,.present:focus{outline:none}
 .present.open .lid{transform:translate(-10%,-51%) rotate(-16deg)}
 .hand-cursor{position:absolute;top:0;left:0;width:22px;height:22px;border:1px solid #fae8b8;border-radius:50%;box-shadow:0 0 12px #ffdb77b0;z-index:3;pointer-events:none}
-.hand-cursor.locked{background:#ffd2776b;border:2px solid #fff1ca}
 dialog{width:min(420px,calc(100% - 28px));max-height:calc(100% - 28px);overflow:auto;border:1px solid #90774b;border-radius:15px;background:#161926;color:var(--cream);text-align:center;padding:22px;box-shadow:0 20px 100px #000a}
 dialog::backdrop{background:#070a13d9}
 .close{position:absolute;right:12px;top:12px;width:44px;height:44px;border:1px solid var(--line);border-radius:100%;background:#10131d;color:#fff1d4;font-size:1.4rem}
@@ -820,7 +817,6 @@ function clearHand() {
   pinchSince = 0;
   pinchLatched = true;
   handCursor.hidden = true;
-  present.classList.remove('aimed');
 }
 function stageTarget(x,y) {
   if(!finalStage || giftTimer) return null;
@@ -891,8 +887,6 @@ function handleHand(landmarks,time) {
   }
   handCursor.hidden = open || fist || giftDialog.open || photoDialog.open;
   handCursor.style.transform = 'translate('+cursor.x+'px,'+cursor.y+'px) translate(-50%,-50%)';
-  handCursor.classList.toggle('locked',settledTarget!==null);
-  present.classList.toggle('aimed',settledTarget==='gift' && !giftTimer);
   if(yaw!==beforeYaw || scatterGoal!==beforeScatter) requestFrame();
 }
 
@@ -1076,7 +1070,7 @@ async function startCamera() {
       session.context = session.canvas.getContext('2d',{alpha:false});
     }
     setCameraState('关闭手势',true);
-    cameraNotice('食指对准相片或礼盒，发亮后捏合。',4500);
+    cameraNotice('食指对准相片或礼盒，停一下再捏合。',4500);
     scheduleTracking(session);
   } catch(error) {
     if(trackingSession!==session) return;
