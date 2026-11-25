@@ -47,12 +47,12 @@ button:focus-visible,canvas:focus-visible{outline:2px solid #ffe4a1;outline-offs
 .pill:hover{background:#3b323e}
 .camera-status{max-width:min(250px,calc(100vw - 70px));font-size:.82rem;color:#f5dfbc;background:#141827;border:1px solid var(--line);border-radius:9px;padding:5px 9px;margin:0}
 .camera-source{position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;inset:auto auto 0 0}
-.present{--box-width:clamp(108px,29vw,136px);position:absolute;left:50%;transform:translateX(-50%);top:var(--gift-top,82%);width:calc(var(--box-width) + 14px);height:calc(var(--box-width)*.79);border:0;background:none;display:grid;justify-items:center;align-content:start;z-index:2;padding:0;-webkit-tap-highlight-color:transparent}
+.present{--gift-target:clamp(108px,29vw,136px);--box-width:clamp(96px,25vw,114px);position:absolute;left:50%;transform:translateX(-50%);top:var(--gift-top,82%);width:calc(var(--gift-target) + 14px);height:calc(var(--gift-target)*.79);border:0;background:none;display:grid;justify-items:center;align-content:start;z-index:2;padding:0;-webkit-tap-highlight-color:transparent}
 .present.enter{animation:gift-in .52s cubic-bezier(.25,.75,.2,1) both}
-@keyframes gift-in{from{opacity:0;transform:translate(-50%,-10px) scale(.9)}to{opacity:1;transform:translate(-50%,0) scale(1)}}
+@keyframes gift-in{from{opacity:0;transform:translate(-50%,-3px)}to{opacity:1;transform:translate(-50%,0)}}
 .box{width:var(--box-width);height:calc(var(--box-width)*.79);position:relative;display:block;transition:transform .24s}
-.box::before{content:"";position:absolute;inset:auto 0 1% -2%;height:23%;background:radial-gradient(ellipse,#060509da 20%,#09071183 48%,#09071100 74%)}
-.box img{position:absolute;display:block;height:auto;user-select:none;pointer-events:none}
+.box::before{content:"";position:absolute;inset:auto -11% -1% -11%;height:19%;background:radial-gradient(ellipse at 51% 44%,#05070ee6 8%,#080b15a3 35%,transparent 70%),radial-gradient(ellipse at 54% 56%,#d2a36723 22%,transparent 72%)}
+.box img{position:absolute;display:block;height:auto;user-select:none;pointer-events:none;filter:saturate(.88)}
 .box .base{width:96.5%;left:2%;bottom:5%}
 .box .lid{width:100%;left:0;top:0;transform-origin:21% 86%;transition:transform .43s cubic-bezier(.15,.8,.22,1)}
 .present:hover .box,.present:focus-visible .box{transform:translateY(-3px)}
@@ -380,8 +380,8 @@ function resize() {
   lastTreeAt = -Infinity;
   center = width / 2;
   particleRenderer?.fit(tree.width,tree.height,width,height);
-  scene.style.setProperty('--gift-top', (treeTop + treeHeight + 7) + 'px');
-  scene.style.setProperty('--floor-top', (treeTop + treeHeight + 5) + 'px');
+  scene.style.setProperty('--gift-top', (treeTop + treeHeight + 1) + 'px');
+  scene.style.setProperty('--floor-top', (treeTop + treeHeight + (width<=520 ? 24 : 29)) + 'px');
   scene.style.setProperty('--floor-width', treeHeight*1.12 + 'px');
   requestFrame();
 }
